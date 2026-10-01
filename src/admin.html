@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="__LANG__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Business Calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Sans+JP:wght@400;600;700&display=swap">
+<style>
+  :root {
+    --bg: #ffffff; --surface: #f4f4f1; --ink: #000000; --ink-2: #3d3f42; --muted: #62656a; --rule: #e2e2de;
+    --accent: #ff6b35; --accent-2: #1f5c45; --danger: #b42318;
+    --font-sans: "IBM Plex Sans JP", "Hiragino Sans", sans-serif;
+    --font-display: "Archivo", "IBM Plex Sans JP", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.7 var(--font-sans); }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px 48px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 60px; border-bottom: 1px solid var(--rule); margin-bottom: 20px; }
+  .logo { font-family: var(--font-display); font-weight: 800; font-stretch: 125%; letter-spacing: -0.03em; font-size: 20px; }
+  .who { font-size: 13px; color: var(--muted); text-align: right; }
+  h1 { font-family: var(--font-display); font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .lead { color: var(--ink-2); font-size: 14px; margin: 0 0 20px; }
+  .btn { min-height: 44px; padding: 0 18px; border: 1px solid var(--ink); background: transparent; font-weight: 600; font-size: 14px; cursor: pointer; }
+  .btn-primary { background: var(--ink); color: var(--bg); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .month-nav h2 { font-family: var(--font-display); font-size: 22px; margin: 0; font-variant-numeric: tabular-nums; }
+  .month-nav .btn { min-width: 44px; padding: 0 12px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th { font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 0; }
+  th:first-child { color: var(--danger); }
+  td { border: 1px solid var(--rule); padding: 0; height: 68px; vertical-align: top; }
+  td.empty { background: var(--surface); }
+  .day { width: 100%; height: 100%; min-height: 66px; border: 0; background: var(--bg); text-align: left; padding: 4px 6px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+  .day:hover { background: var(--surface); }
+  .day .num { font-family: var(--font-display); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .day .label { font-size: 11px; line-height: 1.3; }
+  .day.regular-closed { background: var(--surface); color: var(--muted); }
+  .day.closed { background: var(--accent); color: #000; }
+  .day.hours { background: var(--accent-2); color: #fff; }
+  .day.today { box-shadow: inset 0 0 0 2px var(--ink); }
+  .day.past { opacity: .55; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--ink-2); margin: 10px 0 28px; }
+  .legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: -1px; border: 1px solid var(--rule); }
+  .legend .l-closed::before { background: var(--accent); }
+  .legend .l-hours::before { background: var(--accent-2); }
+  .legend .l-regular::before { background: var(--surface); }
+  section { border-top: 1px solid var(--ink); padding-top: 16px; margin-top: 8px; }
+  section h2 { font-family: var(--font-display); font-size: 20px; margin: 0 0 12px; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+  .row label { font-size: 14px; }
+  input[type=time], input[type=text] { min-height: 44px; border: 1px solid var(--ink-2); padding: 0 10px; background: var(--bg); }
+  input[type=text] { width: 100%; }
+  .weekdays { display: flex; flex-wrap: wrap; gap: 6px; }
+  .weekdays label { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 52px; min-height: 44px; border: 1px solid var(--rule); padding: 0 8px; cursor: pointer; }
+  .weekdays input:checked + span { font-weight: 700; }
+  .weekdays label:has(input:checked) { border-color: var(--ink); background: var(--surface); }
+  dialog { border: 1px solid var(--ink); padding: 20px; width: min(420px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
+  dialog h2 { font-family: var(--font-display); font-size: 20px; margin: 0 0 12px; }
+  fieldset { border: 0; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
+  .choice { display: flex; align-items: center; gap: 10px; min-height: 44px; border: 1px solid var(--rule); padding: 0 12px; cursor: pointer; }
+  .choice:has(input:checked) { border-color: var(--ink); background: var(--surface); }
+  .hours-inputs { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; }
+  .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; font-size: 14px; max-width: calc(100vw - 32px); }
+  .toast.error { background: var(--danger); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .sync { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; color: var(--ink-2); border: 1px solid var(--rule); padding: 8px 12px; margin: 0 0 20px; }
+  .sync.error { border-color: var(--danger); color: var(--danger); }
+  .sync .btn { min-height: 36px; padding: 0 12px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="logo" id="store-name"></span>
+    <span class="who" id="who"></span>
+  </header>
+
+  <h1 data-i18n="title"></h1>
+  <p class="lead" data-i18n="lead"></p>
+  <div class="sync" id="sync" role="status" aria-live="polite"></div>
+
+  <div class="month-nav">
+    <button type="button" class="btn" id="prev" data-i18n-label="prevMonth">‹</button>
+    <h2 id="month-title" aria-live="polite"></h2>
+    <button type="button" class="btn" id="next" data-i18n-label="nextMonth">›</button>
+  </div>
+  <table aria-describedby="legend">
+    <thead><tr id="weekday-head"></tr></thead>
+    <tbody id="grid"></tbody>
+  </table>
+  <div class="legend" id="legend">
+    <span class="l-closed" data-i18n="closed"></span><span class="l-hours" data-i18n="changedHours"></span><span class="l-regular" data-i18n="regularClosedDay"></span>
+  </div>
+
+  <section aria-labelledby="regular-heading">
+    <h2 id="regular-heading" data-i18n="regularHeading"></h2>
+    <form id="regular-form">
+      <div class="row">
+        <label><span data-i18n="opens"></span> <input type="time" id="reg-opens" required></label>
+        <label><span data-i18n="closes"></span> <input type="time" id="reg-closes" required></label>
+      </div>
+      <div class="row">
+        <span class="muted" data-i18n="closedWeekdays"></span>
+        <div class="weekdays" id="reg-weekdays"></div>
+      </div>
+      <button type="submit" class="btn btn-primary" data-i18n="saveRegular"></button>
+    </form>
+  </section>
+</div>
+
+<dialog id="day-dialog" aria-labelledby="day-title">
+  <form id="day-form" method="dialog">
+    <h2 id="day-title"></h2>
+    <fieldset>
+      <legend class="muted" id="day-default"></legend>
+      <label class="choice"><input type="radio" name="kind" value="default"> <span data-i18n="asUsual"></span></label>
+      <label class="choice"><input type="radio" name="kind" value="closed"> <span data-i18n="closed"></span></label>
+      <label class="choice"><input type="radio" name="kind" value="hours"> <span data-i18n="changeHours"></span></label>
+    </fieldset>
+    <div class="hours-inputs" id="hours-inputs">
+      <input type="time" id="day-opens" data-i18n-label="opensTime"> – <input type="time" id="day-closes" data-i18n-label="closesTime">
+    </div>
+    <label class="muted" for="day-note" data-i18n="noteLabel"></label>
+    <input type="text" id="day-note" maxlength="100" data-i18n-placeholder="notePlaceholder">
+    <div class="actions">
+      <button type="button" class="btn" id="day-cancel" data-i18n="cancel"></button>
+      <button type="submit" class="btn btn-primary" id="day-save" data-i18n="save"></button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  // サーバーが言語・タイムゾーン・店名を埋め込む
+  const CONFIG = /*__CONFIG__*/null || { language: "ja", timezone: "Asia/Tokyo", storeName: "" };
+
+  const I18N = {
+    ja: {
+      title: "営業日カレンダー",
+      lead: "日付をタップして、休業日やその日だけの営業時間を設定します。保存すると、サイトのカレンダーと「営業中」の表示にすぐ反映されます。",
+      prevMonth: "前の月", nextMonth: "次の月",
+      weekdays: ["日", "月", "火", "水", "木", "金", "土"],
+      monthTitle: (y, m) => `${y}年${m}月`,
+      dayTitle: (m, d, w) => `${m}月${d}日（${w}）`,
+      closed: "休業", changedHours: "時間変更", regularClosedDay: "定休曜日", regularClosedShort: "定休", open: "通常営業",
+      regularHeading: "通常の営業時間・定休曜日", opens: "開店", closes: "閉店", closedWeekdays: "定休曜日", saveRegular: "通常の設定を保存",
+      asUsual: "通常どおり", changeHours: "営業時間を変更", opensTime: "開店時刻", closesTime: "閉店時刻",
+      noteLabel: "メモ（サイトに表示されます・任意）", notePlaceholder: "例: イベント出店のため",
+      cancel: "キャンセル", save: "保存",
+      defaultClosed: "この曜日は通常は定休日です", defaultOpen: (o, c) => `通常は ${o}〜${c} の営業です`,
+      hours: (o, c) => `${o}〜${c}`, sep: "、",
+      saved: "保存しました。サイトにすぐ反映されます。", savedRegular: "通常の営業時間を保存しました。",
+      error: (status) => `エラーが発生しました（${status}）`,
+      syncOff: "Googleマップ：未連携（Business Profile API を設定すると、保存のたびに自動で反映されます）",
+      syncFailed: (t) => `Googleマップ：反映に失敗しました（${t}）`, syncRetry: "もう一度反映する",
+      syncOk: (t) => `Googleマップ：反映済み（${t}）`, syncNever: "Googleマップ：まだ反映していません", syncNow: "今すぐ反映する",
+      syncing: "Googleマップに反映しています…",
+    },
+    en: {
+      title: "Business Calendar",
+      lead: "Tap a date to set a closed day or special hours. Changes appear on your website's calendar and \"open now\" status right away.",
+      prevMonth: "Previous month", nextMonth: "Next month",
+      weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      monthTitle: (y, m) => new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { year: "numeric", month: "long", timeZone: "UTC" }),
+      dayTitle: (m, d, w) => `${w}, ${new Date(Date.UTC(2000, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`,
+      closed: "Closed", changedHours: "Special hours", regularClosedDay: "Regular closing day", regularClosedShort: "Closed", open: "Open",
+      regularHeading: "Regular hours and closing days", opens: "Opens", closes: "Closes", closedWeekdays: "Closed on", saveRegular: "Save regular hours",
+      asUsual: "Regular hours", changeHours: "Special hours", opensTime: "Opening time", closesTime: "Closing time",
+      noteLabel: "Note (shown on your website, optional)", notePlaceholder: "e.g. Closed for a pop-up event",
+      cancel: "Cancel", save: "Save",
+      defaultClosed: "Normally closed on this day", defaultOpen: (o, c) => `Normally open ${o}–${c}`,
+      hours: (o, c) => `${o}–${c}`, sep: ", ",
+      saved: "Saved. Your website is updated right away.", savedRegular: "Regular hours saved.",
+      error: (status) => `Something went wrong (${status})`,
+      syncOff: "Google Maps: not connected (set up the Business Profile API to update it automatically on every save)",
+      syncFailed: (t) => `Google Maps: update failed (${t})`, syncRetry: "Try again",
+      syncOk: (t) => `Google Maps: up to date (${t})`, syncNever: "Google Maps: not updated yet", syncNow: "Update now",
+      syncing: "Updating Google Maps…",
+    },
+  };
+  const T = I18N[CONFIG.language] || I18N.ja;
+
+  const state = { year: 0, month: 0, data: null, editing: null };
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, "0");
+  const ymd = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+  const weekdayOf = (date) => new Date(`${date}T00:00:00Z`).getUTCDay();
+  const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  // お店のタイムゾーンでの今日
+  const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: CONFIG.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  // 日時をお店のタイムゾーンで表示
+  const fmt = (iso) => new Intl.DateTimeFormat(CONFIG.language === "en" ? "en-US" : "ja-JP", { timeZone: CONFIG.timezone, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+
+  // 固定の文言を言語に合わせて埋める
+  document.querySelectorAll("[data-i18n]").forEach((el) => (el.textContent = T[el.dataset.i18n]));
+  document.querySelectorAll("[data-i18n-label]").forEach((el) => el.setAttribute("aria-label", T[el.dataset.i18nLabel]));
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => el.setAttribute("placeholder", T[el.dataset.i18nPlaceholder]));
+  $("weekday-head").innerHTML = T.weekdays.map((w) => `<th scope="col">${w}</th>`).join("");
+  $("store-name").textContent = CONFIG.storeName || T.title;
+  document.title = CONFIG.storeName ? `${T.title} | ${CONFIG.storeName}` : T.title;
+
+  function toast(message, isError = false) {
+    const el = $("toast");
+    el.textContent = message;
+    el.classList.toggle("error", isError);
+    el.hidden = false;
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => (el.hidden = true), 4000);
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(path, {
+      ...options,
+      headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || T.error(res.status));
+    return body;
+  }
+
+  // Googleマップ（ビジネスプロフィール）への反映状況
+  async function loadSync() {
+    const el = $("sync");
+    try {
+      const s = await api("/api/sync-status");
+      el.classList.toggle("error", !!(s.configured && s.lastError));
+      if (!s.configured) {
+        el.textContent = T.syncOff;
+      } else if (s.lastError) {
+        el.innerHTML = `<span>${escapeHtml(T.syncFailed(fmt(s.lastAttemptAt)))} ${escapeHtml(s.lastError)}</span><button type="button" class="btn" id="sync-retry">${T.syncRetry}</button>`;
+        $("sync-retry").addEventListener("click", retrySync);
+      } else if (s.lastSuccessAt) {
+        el.textContent = T.syncOk(fmt(s.lastSuccessAt));
+      } else {
+        el.innerHTML = `<span>${T.syncNever}</span><button type="button" class="btn" id="sync-retry">${T.syncNow}</button>`;
+        $("sync-retry").addEventListener("click", retrySync);
+      }
+    } catch {
+      el.textContent = "";
+    }
+  }
+
+  async function retrySync() {
+    $("sync").textContent = T.syncing;
+    try {
+      await api("/api/sync", { method: "POST", body: "{}" });
+    } finally {
+      loadSync();
+    }
+  }
+
+  // 保存のあと Google への反映が終わる頃に状況を読み直す
+  const refreshSyncLater = () => setTimeout(loadSync, 2500);
+
+  async function load() {
+    const last = new Date(Date.UTC(state.year, state.month, 0)).getUTCDate();
+    state.data = await api(`/api/calendar?from=${ymd(state.year, state.month, 1)}&to=${ymd(state.year, state.month, last)}`);
+    render();
+  }
+
+  function describe(date) {
+    const override = state.data.days[date];
+    if (override?.kind === "closed") return { cls: "closed", label: T.closed };
+    if (override?.kind === "hours") return { cls: "hours", label: T.hours(override.opens, override.closes) };
+    if (state.data.regular.closedWeekdays.includes(weekdayOf(date))) return { cls: "regular-closed", label: T.regularClosedShort };
+    return { cls: "", label: "" };
+  }
+
+  function render() {
+    const { year, month } = state;
+    $("month-title").textContent = T.monthTitle(year, month);
+    const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const now = today();
+    const cells = [];
+    for (let i = 0; i < firstWeekday; i++) cells.push('<td class="empty"></td>');
+    for (let d = 1; d <= last; d++) {
+      const date = ymd(year, month, d);
+      const { cls, label } = describe(date);
+      const note = state.data.days[date]?.note;
+      const classes = ["day", cls, date === now ? "today" : "", date < now ? "past" : ""].filter(Boolean).join(" ");
+      const aria = `${T.dayTitle(month, d, T.weekdays[weekdayOf(date)])} ${label || T.open}${note ? `${T.sep}${note}` : ""}`;
+      cells.push(`<td><button type="button" class="${classes}" data-date="${date}" aria-label="${escapeHtml(aria)}"><span class="num">${d}</span><span class="label">${escapeHtml(label)}</span></button></td>`);
+    }
+    while (cells.length % 7) cells.push('<td class="empty"></td>');
+    const rows = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(`<tr>${cells.slice(i, i + 7).join("")}</tr>`);
+    $("grid").innerHTML = rows.join("");
+
+    const r = state.data.regular;
+    $("reg-opens").value = r.opens;
+    $("reg-closes").value = r.closes;
+    $("reg-weekdays").innerHTML = T.weekdays.map((w, i) =>
+      `<label><input type="checkbox" value="${i}" ${r.closedWeekdays.includes(i) ? "checked" : ""}><span>${w}</span></label>`
+    ).join("");
+  }
+
+  function openDay(date) {
+    state.editing = date;
+    const override = state.data.days[date];
+    const r = state.data.regular;
+    const [, m, d] = date.split("-").map(Number);
+    $("day-title").textContent = T.dayTitle(m, d, T.weekdays[weekdayOf(date)]);
+    $("day-default").textContent = r.closedWeekdays.includes(weekdayOf(date)) ? T.defaultClosed : T.defaultOpen(r.opens, r.closes);
+    const kind = override?.kind ?? "default";
+    document.querySelector(`input[name=kind][value=${kind}]`).checked = true;
+    $("day-opens").value = override?.kind === "hours" ? override.opens : r.opens;
+    $("day-closes").value = override?.kind === "hours" ? override.closes : r.closes;
+    $("day-note").value = override?.note ?? "";
+    syncHoursInputs();
+    $("day-dialog").showModal();
+  }
+
+  function syncHoursInputs() {
+    const isHours = document.querySelector("input[name=kind]:checked")?.value === "hours";
+    $("hours-inputs").hidden = !isHours;
+  }
+
+  $("grid").addEventListener("click", (e) => {
+    const button = e.target.closest("button[data-date]");
+    if (button) openDay(button.dataset.date);
+  });
+  $("day-form").addEventListener("change", syncHoursInputs);
+  $("day-cancel").addEventListener("click", () => $("day-dialog").close());
+
+  $("day-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const date = state.editing;
+    const kind = document.querySelector("input[name=kind]:checked").value;
+    const note = $("day-note").value.trim();
+    $("day-save").disabled = true;
+    try {
+      if (kind === "default") {
+        await api(`/api/days/${date}`, { method: "DELETE" });
+      } else {
+        const body = kind === "closed"
+          ? { kind, note }
+          : { kind, opens: $("day-opens").value, closes: $("day-closes").value, note };
+        await api(`/api/days/${date}`, { method: "PUT", body: JSON.stringify(body) });
+      }
+      $("day-dialog").close();
+      await load();
+      toast(T.saved);
+      refreshSyncLater();
+    } catch (error) {
+      toast(error.message, true);
+    } finally {
+      $("day-save").disabled = false;
+    }
+  });
+
+  $("regular-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const closedWeekdays = [...document.querySelectorAll("#reg-weekdays input:checked")].map((i) => Number(i.value));
+    try {
+      await api("/api/settings", {
+        method: "PUT",
+        body: JSON.stringify({ opens: $("reg-opens").value, closes: $("reg-closes").value, closedWeekdays }),
+      });
+      await load();
+      toast(T.savedRegular);
+      refreshSyncLater();
+    } catch (error) {
+      toast(error.message, true);
+    }
+  });
+
+  const move = (delta) => {
+    const d = new Date(Date.UTC(state.year, state.month - 1 + delta, 1));
+    state.year = d.getUTCFullYear();
+    state.month = d.getUTCMonth() + 1;
+    load().catch((error) => toast(error.message, true));
+  };
+  $("prev").addEventListener("click", () => move(-1));
+  $("next").addEventListener("click", () => move(1));
+
+  const [y, m] = today().split("-").map(Number);
+  state.year = y;
+  state.month = m;
+  api("/api/me").then(({ email }) => ($("who").textContent = email)).catch(() => {});
+  load().catch((error) => toast(error.message, true));
+  loadSync();
+})();
+</script>
+</body>
+</html>

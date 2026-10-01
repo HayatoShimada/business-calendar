@@ -1,0 +1,29 @@
+{
+  "name": "business-calendar",
+  "version": "1.0.0",
+  "description": "お店の営業日カレンダー（休業日・時間変更）を管理画面で入力し、サイトとGoogleマップにすぐ反映する Cloudflare Worker",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --import tsx test/unit/*.test.ts",
+    "test:api": "bash test/api-test.sh"
+  },
+  "dependencies": {
+    "jose": "^6.2.12"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261001.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5",
+    "wrangler": "^4.145.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

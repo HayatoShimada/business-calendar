@@ -1,0 +1,42 @@
+{
+  // 営業日カレンダー: 管理画面（Cloudflare Access で保護）・公開の読み取りAPI・サイトに埋め込む部品
+  // 使うときは example.com と各値を自分のものに置き換える（README の「セットアップ」参照）
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "business-calendar",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "routes": [
+    // 管理画面（Cloudflare Access で保護する）
+    { "pattern": "calendar-admin.example.com", "custom_domain": true },
+    // 公開の読み取りAPIと埋め込み部品（/v1/calendar, /widget.js）
+    { "pattern": "calendar.example.com", "custom_domain": true }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "business-calendar",
+      // `npx wrangler d1 create business-calendar` で表示されたIDに置き換える
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // 埋め込み部品のソースは Worker で実行せず、文字列として配信する
+  "rules": [{ "type": "Text", "globs": ["**/*.embed.js"], "fallthrough": true }],
+  "vars": {
+    // 管理画面のホスト名（これ以外のホストでは管理画面・書き込みAPIを出さない）
+    "ADMIN_HOST": "calendar-admin.example.com",
+    // Cloudflare Zero Trust のチームドメイン（例: your-team.cloudflareaccess.com）
+    "ACCESS_TEAM_DOMAIN": "",
+    // Access アプリの Application Audience (AUD) タグ
+    "ACCESS_AUD": "",
+    // 管理画面を使えるメールアドレス（カンマ区切り）
+    "ADMIN_EMAILS": "you@example.com",
+    // お店のタイムゾーン（IANA 名）
+    "TIMEZONE": "Asia/Tokyo",
+    // 管理画面とメッセージの言語（ja / en）
+    "LANGUAGE": "ja",
+    // 管理画面の見出しに出す店名
+    "STORE_NAME": "My Store"
+  },
+  "observability": { "enabled": true }
+}
