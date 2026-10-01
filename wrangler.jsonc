@@ -35,8 +35,12 @@
     "TIMEZONE": "Asia/Tokyo",
     // 管理画面とメッセージの言語（ja / en）
     "LANGUAGE": "ja",
-    // 管理画面の見出しに出す店名
-    "STORE_NAME": "My Store"
+    // 管理画面の見出し・お知らせ文・カレンダー画像に出す店名
+    "STORE_NAME": "My Store",
+    // お知らせ文・カレンダー画像に載せるURL（営業日カレンダーを載せたページ）
+    "SHARE_URL": "https://example.com/hours",
+    // カレンダー画像の休業日の印（cat / dot）
+    "IMAGE_CLOSED_MARK": "dot"
   },
   "observability": { "enabled": true }
 }

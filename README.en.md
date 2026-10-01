@@ -8,6 +8,8 @@ Set your shop's **closed days, special hours, and regular hours** from your phon
 - ⚡ **No redeploys**: your website reads the public API from the browser, so changes appear the moment you save
 - 🧩 **Embeds anywhere**: one `<script>` tag gives you status and calendar Web Components
 - 🔐 **Three login options**: email / Google, registered devices only (Cloudflare One), devices on your tailnet only (Tailscale tsidp)
+- 📣 **Announce on social media**: build a message and a calendar image from your changes, then post to X or Instagram from the phone's share sheet (no APIs, no fees)
+- 📤 **Share the calendar image**: visitors can share it with each platform's native share sheet (iOS / Android / Web)
 - 🗺️ **Google Maps sync** (optional): updates regular and special hours through the Google Business Profile API
 - 🌏 **Japanese / English**, any time zone
 
@@ -88,12 +90,17 @@ After creating the Access application, set `ACCESS_TEAM_DOMAIN` (e.g. `your-team
 | `lang` | `ja` / `en` (defaults to the page's `<html lang>`) |
 | `closed-mark` | Marker for closed days: `cat` (a curled-up cat) or a dot when omitted |
 | `src` | API base URL (defaults to the origin that served widget.js) |
+| `share` | Show a "Share calendar" button ([docs/share.md](docs/share.md)) |
 
 Style it with CSS custom properties: `--bc-ink`, `--bc-muted`, `--bc-rule`, `--bc-surface`, `--bc-closed`, `--bc-open-bg` / `--bc-open-ink`. The components use Shadow DOM and expose `::part(status)`, `::part(table)`, and more.
 
 For a custom UI in React / Next.js etc., read the public API (below) directly. See [85-Store's implementation](https://github.com/HayatoShimada/85store/blob/main/lib/business-calendar.ts) for an example.
 
-### 4. (Optional) Sync to Google Maps
+### 4. Announce on social media
+
+"Create announcement" in the admin page builds a message from your changes (or a monthly summary) and a calendar image (feed 4:5 / stories 9:16), which you post to X, Instagram, etc. from the share sheet. See **[docs/share.md](docs/share.md)** (Japanese).
+
+### 5. (Optional) Sync to Google Maps
 
 On every save, regular hours and special hours (today through 180 days ahead) on Google Maps are updated to match. See **[docs/google.md](docs/google.md)** (Japanese).
 
@@ -124,7 +131,9 @@ On every save, regular hours and special hours (today through 180 days ahead) on
 | `ADMIN_EMAILS` | Comma-separated emails allowed to use the admin page |
 | `TIMEZONE` | The shop's time zone (IANA name, default `Asia/Tokyo`) |
 | `LANGUAGE` | Language of the admin page and messages (`ja` / `en`) |
-| `STORE_NAME` | Store name shown in the admin header |
+| `STORE_NAME` | Store name used in the admin header, announcements, and calendar images |
+| `SHARE_URL` | URL included in announcements and calendar images (the page with your calendar) |
+| `IMAGE_CLOSED_MARK` | Marker for closed days in calendar images (`cat` / `dot`) |
 
 Google Maps credentials (`GOOGLE_CLIENT_ID`, etc.) are stored as secrets ([docs/google.md](docs/google.md)).
 

@@ -1,17 +1,21 @@
 import adminHtml from "./admin.html";
 import widgetJs from "./widget.embed.js";
+import calendarImageJs from "./calendar-image.embed.js";
+import { composeChanges, composeMonth } from "./announce";
 import { AccessError, requireAdmin, type AccessEnv } from "./access";
 import { readSyncStatus, syncToGoogle, type GoogleEnv } from "./google";
 import { getMessages, type Messages } from "./i18n";
-import { DEFAULT_TIMEZONE } from "./time";
+import { DEFAULT_TIMEZONE, todayIn } from "./time";
 import {
   ValidationError,
   deleteDay,
   isValidDate,
+  markAnnounced,
   parseDayOverride,
   parseRange,
   parseRegular,
   readCalendar,
+  readPendingChanges,
   upsertDay,
   updateRegular,
 } from "./calendar";
@@ -21,7 +25,9 @@ interface Env extends AccessEnv, GoogleEnv {
   ADMIN_HOST: string;
   TIMEZONE?: string; // お店のタイムゾーン（IANA 名）。既定は Asia/Tokyo
   LANGUAGE?: string; // 管理画面とメッセージの言語（ja / en）。既定は ja
-  STORE_NAME?: string; // 管理画面の見出しに出す店名
+  STORE_NAME?: string; // 管理画面の見出し・お知らせ文・画像に出す店名
+  SHARE_URL?: string; // お知らせ文・画像に載せるURL（営業日カレンダーのあるページ）
+  IMAGE_CLOSED_MARK?: string; // 画像の休業日の印（cat / dot）
 }
 
 const json = (body: unknown, init: ResponseInit = {}) =>
@@ -44,23 +50,31 @@ const ADMIN_HTML_HEADERS = {
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "same-origin",
   "Content-Security-Policy":
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'",
 };
 
 const timeZoneOf = (env: Env) => env.TIMEZONE || DEFAULT_TIMEZONE;
+const languageOf = (env: Env) => (env.LANGUAGE === "en" ? "en" : "ja");
+
+// 店名・URL（埋め込み部品が画像や共有の文面に使う）
+const storeOf = (env: Env) => ({
+  ...(env.STORE_NAME && { name: env.STORE_NAME }),
+  ...(env.SHARE_URL && { url: env.SHARE_URL }),
+  ...(env.IMAGE_CLOSED_MARK && { closedMark: env.IMAGE_CLOSED_MARK }),
+});
 
 async function handlePublic(request: Request, env: Env, url: URL, m: Messages): Promise<Response> {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: PUBLIC_HEADERS });
   if (request.method !== "GET") return json({ error: "Method Not Allowed" }, { status: 405, headers: { ...PUBLIC_HEADERS, Allow: "GET" } });
   const timezone = timeZoneOf(env);
   const { from, to } = parseRange(url, timezone, m);
-  return json({ ...(await readCalendar(env.DB, from, to)), timezone }, { headers: PUBLIC_HEADERS });
+  return json({ ...(await readCalendar(env.DB, from, to)), timezone, store: storeOf(env) }, { headers: PUBLIC_HEADERS });
 }
 
-// サイトに埋め込むカレンダー・営業状況の部品（Web Components）
-function handleWidget(request: Request): Response {
+// サイトに埋め込む部品（Web Components）と、カレンダー画像を作るモジュール
+function handleScript(request: Request, source: string): Response {
   if (request.method !== "GET") return json({ error: "Method Not Allowed" }, { status: 405 });
-  return new Response(widgetJs, {
+  return new Response(source, {
     headers: {
       ...PUBLIC_HEADERS,
       "Content-Type": "text/javascript; charset=utf-8",
@@ -74,7 +88,13 @@ async function handleAdmin(request: Request, env: Env, url: URL, ctx: ExecutionC
 
   if (url.pathname === "/" && request.method === "GET") {
     // 言語・タイムゾーン・店名を管理画面に渡す
-    const config = JSON.stringify({ language: env.LANGUAGE === "en" ? "en" : "ja", timezone: timeZoneOf(env), storeName: env.STORE_NAME || "" });
+    const config = JSON.stringify({
+      language: languageOf(env),
+      timezone: timeZoneOf(env),
+      storeName: env.STORE_NAME || "",
+      shareUrl: env.SHARE_URL || "",
+      closedMark: env.IMAGE_CLOSED_MARK || "dot",
+    });
     const html = adminHtml
       .replace("__LANG__", env.LANGUAGE === "en" ? "en" : "ja")
       .replace("/*__CONFIG__*/null", config.replace(/</g, "\\u003c"));
@@ -98,6 +118,32 @@ async function handleAdmin(request: Request, env: Env, url: URL, ctx: ExecutionC
   if (url.pathname === "/api/calendar" && request.method === "GET") {
     const { from, to } = parseRange(url, timeZoneOf(env), m);
     return json(await readCalendar(env.DB, from, to));
+  }
+
+  // お知らせ文の下書き（mode=changes: まだお知らせしていない変更 / month: その月のまとめ）
+  if (url.pathname === "/api/announcement" && request.method === "GET") {
+    const tz = timeZoneOf(env);
+    const today = todayIn(tz);
+    const options = { language: languageOf(env), storeName: env.STORE_NAME, shareUrl: env.SHARE_URL, today } as const;
+    const mode = url.searchParams.get("mode");
+    const calendar = await readCalendar(env.DB, today, today);
+    if (mode !== "month") {
+      const draft = composeChanges(await readPendingChanges(env.DB), calendar.regular, options);
+      if (draft || mode === "changes") return json({ draft });
+    }
+    const month = url.searchParams.get("month") ?? today.slice(0, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return json({ error: m.invalidDate }, { status: 400 });
+    const last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate();
+    const monthData = await readCalendar(env.DB, `${month}-01`, `${month}-${last}`);
+    return json({ draft: composeMonth(month, monthData, options) });
+  }
+
+  // ここまでの変更をお知らせ済みにする
+  if (url.pathname === "/api/announcements" && request.method === "POST") {
+    const { uptoId } = (await request.json()) as { uptoId?: unknown };
+    if (!Number.isInteger(uptoId)) return json({ error: "uptoId must be an integer" }, { status: 400 });
+    await markAnnounced(env.DB, uptoId as number);
+    return json({ ok: true });
   }
 
   if (url.pathname === "/api/sync-status" && request.method === "GET") {
@@ -128,7 +174,7 @@ async function handleAdmin(request: Request, env: Env, url: URL, ctx: ExecutionC
       return json({ ok: true });
     }
     if (request.method === "DELETE") {
-      await deleteDay(env.DB, date);
+      await deleteDay(env.DB, date, email);
       syncLater();
       return json({ ok: true });
     }
@@ -144,7 +190,8 @@ export default {
     try {
       // 公開の読み取りAPIと埋め込み部品はどのホストでも同じ（管理ホストでも読める）
       if (url.pathname === "/v1/calendar") return await handlePublic(request, env, url, m);
-      if (url.pathname === "/widget.js") return handleWidget(request);
+      if (url.pathname === "/widget.js") return handleScript(request, widgetJs);
+      if (url.pathname === "/calendar-image.js") return handleScript(request, calendarImageJs);
       // 管理画面・書き込みAPIは管理ホストだけで提供する
       if (url.hostname === env.ADMIN_HOST) return await handleAdmin(request, env, url, ctx, m);
       return json({ error: "Not Found" }, { status: 404 });

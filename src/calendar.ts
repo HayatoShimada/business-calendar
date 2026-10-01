@@ -125,32 +125,81 @@ export async function readCalendar(db: D1Database, from: string, to: string): Pr
   };
 }
 
+// 変更は changes にも記録する（お知らせ文を作るため）
 export async function upsertDay(db: D1Database, date: string, day: DayOverride, by: string): Promise<void> {
-  await db
-    .prepare(
-      `INSERT INTO days (date, kind, opens, closes, note, updated_at, updated_by)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-       ON CONFLICT(date) DO UPDATE SET kind = ?2, opens = ?3, closes = ?4, note = ?5, updated_at = ?6, updated_by = ?7`
-    )
-    .bind(
-      date,
-      day.kind,
-      day.kind === "hours" ? day.opens : null,
-      day.kind === "hours" ? day.closes : null,
-      day.note ?? null,
-      new Date().toISOString(),
-      by
-    )
-    .run();
+  const now = new Date().toISOString();
+  const opens = day.kind === "hours" ? day.opens : null;
+  const closes = day.kind === "hours" ? day.closes : null;
+  const note = day.note ?? null;
+  await db.batch([
+    // 内容が変わるときだけ記録する（保存し直しただけの日をお知らせに出さない）
+    db
+      .prepare(
+        `INSERT INTO changes (target, date, kind, opens, closes, note, changed_at, changed_by)
+         SELECT 'day', ?1, ?2, ?3, ?4, ?5, ?6, ?7
+         WHERE NOT EXISTS (SELECT 1 FROM days WHERE date = ?1 AND kind = ?2 AND opens IS ?3 AND closes IS ?4 AND note IS ?5)`
+      )
+      .bind(date, day.kind, opens, closes, note, now, by),
+    db
+      .prepare(
+        `INSERT INTO days (date, kind, opens, closes, note, updated_at, updated_by)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(date) DO UPDATE SET kind = ?2, opens = ?3, closes = ?4, note = ?5, updated_at = ?6, updated_by = ?7`
+      )
+      .bind(date, day.kind, opens, closes, note, now, by),
+  ]);
 }
 
-export async function deleteDay(db: D1Database, date: string): Promise<void> {
-  await db.prepare("DELETE FROM days WHERE date = ?").bind(date).run();
+export async function deleteDay(db: D1Database, date: string, by: string): Promise<void> {
+  await db.batch([
+    // 設定がある日を戻したときだけ記録する
+    db
+      .prepare(
+        `INSERT INTO changes (target, date, kind, changed_at, changed_by)
+         SELECT 'day', ?1, 'default', ?2, ?3 WHERE EXISTS (SELECT 1 FROM days WHERE date = ?1)`
+      )
+      .bind(date, new Date().toISOString(), by),
+    db.prepare("DELETE FROM days WHERE date = ?").bind(date),
+  ]);
 }
 
 export async function updateRegular(db: D1Database, regular: Regular, by: string): Promise<void> {
-  await db
-    .prepare("UPDATE settings SET opens = ?, closes = ?, closed_weekdays = ?, updated_at = ?, updated_by = ? WHERE id = 1")
-    .bind(regular.opens, regular.closes, JSON.stringify(regular.closedWeekdays), new Date().toISOString(), by)
-    .run();
+  const now = new Date().toISOString();
+  const weekdays = JSON.stringify(regular.closedWeekdays);
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO changes (target, opens, closes, closed_weekdays, changed_at, changed_by)
+         SELECT 'regular', ?1, ?2, ?3, ?4, ?5
+         WHERE NOT EXISTS (SELECT 1 FROM settings WHERE id = 1 AND opens = ?1 AND closes = ?2 AND closed_weekdays = ?3)`
+      )
+      .bind(regular.opens, regular.closes, weekdays, now, by),
+    db
+      .prepare("UPDATE settings SET opens = ?, closes = ?, closed_weekdays = ?, updated_at = ?, updated_by = ? WHERE id = 1")
+      .bind(regular.opens, regular.closes, weekdays, now, by),
+  ]);
+}
+
+export interface ChangeRow {
+  id: number;
+  target: "day" | "regular";
+  date: string | null;
+  kind: "closed" | "hours" | "default" | null;
+  opens: string | null;
+  closes: string | null;
+  note: string | null;
+  closed_weekdays: string | null;
+}
+
+// まだお知らせしていない変更（古い順）
+export async function readPendingChanges(db: D1Database): Promise<ChangeRow[]> {
+  const { results } = await db
+    .prepare("SELECT id, target, date, kind, opens, closes, note, closed_weekdays FROM changes WHERE announced_at IS NULL ORDER BY id")
+    .all<ChangeRow>();
+  return results;
+}
+
+// uptoId までの変更をお知らせ済みにする
+export async function markAnnounced(db: D1Database, uptoId: number): Promise<void> {
+  await db.prepare("UPDATE changes SET announced_at = ? WHERE announced_at IS NULL AND id <= ?").bind(new Date().toISOString(), uptoId).run();
 }

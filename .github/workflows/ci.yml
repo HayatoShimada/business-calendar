@@ -15,4 +15,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: node --check src/widget.embed.js && node --check src/calendar-image.embed.js
       - run: bash -n deploy/gcp-e2-micro/startup.sh

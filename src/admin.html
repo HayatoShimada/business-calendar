@@ -75,6 +75,27 @@
   .sync { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; color: var(--ink-2); border: 1px solid var(--rule); padding: 8px 12px; margin: 0 0 20px; }
   .sync.error { border-color: var(--danger); color: var(--danger); }
   .sync .btn { min-height: 36px; padding: 0 12px; font-size: 13px; }
+  .announce-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; font-size: 14px; background: var(--surface); border: 1px solid var(--ink); padding: 8px 12px; margin: 0 0 20px; }
+  .announce-bar .btn { min-height: 40px; }
+  dialog.share { width: min(560px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); padding: 16px; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--ink); margin-bottom: 10px; }
+  .seg label { display: flex; align-items: center; justify-content: center; min-height: 44px; font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; padding: 0 6px; }
+  .seg label + label { border-left: 1px solid var(--ink); }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label:has(input:checked) { background: var(--ink); color: var(--bg); }
+  .seg label:has(input:focus-visible) { outline: 2px solid var(--accent-2); outline-offset: -4px; }
+  .share-month { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .share-month strong { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
+  .share-month .btn { min-width: 44px; padding: 0 12px; }
+  .preview { display: block; width: 100%; max-height: 46dvh; object-fit: contain; background: var(--surface); border: 1px solid var(--rule); margin-bottom: 10px; }
+  textarea { width: 100%; min-height: 9em; border: 1px solid var(--ink-2); padding: 8px 10px; font: inherit; font-size: 15px; line-height: 1.6; resize: vertical; }
+  .count { font-size: 12px; color: var(--muted); text-align: right; margin: 2px 0 10px; }
+  .count.over { color: var(--danger); font-weight: 700; }
+  .share-actions { display: grid; gap: 8px; }
+  .share-actions .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .share-actions .btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; color: inherit; }
+  .share-actions .btn-primary { color: var(--bg); }
+  .hint { font-size: 12px; color: var(--ink-2); margin: 8px 0 0; }
 </style>
 </head>
 <body>
@@ -87,6 +108,10 @@
   <h1 data-i18n="title"></h1>
   <p class="lead" data-i18n="lead"></p>
   <div class="sync" id="sync" role="status" aria-live="polite"></div>
+  <div class="announce-bar" id="announce-bar" hidden>
+    <span data-i18n="pendingChanges"></span>
+    <button type="button" class="btn btn-primary" id="announce-open" data-i18n="makeAnnouncement"></button>
+  </div>
 
   <div class="month-nav">
     <button type="button" class="btn" id="prev" data-i18n-label="prevMonth">‹</button>
@@ -115,7 +140,57 @@
       <button type="submit" class="btn btn-primary" data-i18n="saveRegular"></button>
     </form>
   </section>
+
+  <section aria-labelledby="share-heading">
+    <h2 id="share-heading" data-i18n="shareHeading"></h2>
+    <p class="muted" data-i18n="shareLead"></p>
+    <button type="button" class="btn" id="share-open" data-i18n="makeAnnouncement"></button>
+  </section>
 </div>
+
+<dialog id="share-dialog" class="share" aria-labelledby="share-title">
+  <form method="dialog" id="share-form">
+    <h2 id="share-title" data-i18n="makeAnnouncement"></h2>
+    <div class="seg" role="radiogroup" data-i18n-label="contentLabel">
+      <label><input type="radio" name="share-mode" value="changes"><span data-i18n="modeChanges"></span></label>
+      <label><input type="radio" name="share-mode" value="month"><span data-i18n="modeMonth"></span></label>
+    </div>
+    <div class="share-month">
+      <button type="button" class="btn" id="share-prev" data-i18n-label="prevMonth">‹</button>
+      <strong id="share-month" aria-live="polite"></strong>
+      <button type="button" class="btn" id="share-next" data-i18n-label="nextMonth">›</button>
+    </div>
+    <div class="seg" role="radiogroup" data-i18n-label="formatLabel">
+      <label><input type="radio" name="share-format" value="feed" checked><span data-i18n="formatFeed"></span></label>
+      <label><input type="radio" name="share-format" value="story"><span data-i18n="formatStory"></span></label>
+    </div>
+    <img class="preview" id="share-preview" alt="">
+    <label class="muted" for="share-text" data-i18n="textLabel"></label>
+    <textarea id="share-text"></textarea>
+    <p class="count" id="share-count" aria-live="polite"></p>
+    <div class="share-actions">
+      <div id="share-native">
+        <div class="share-actions">
+          <button type="button" class="btn btn-primary" id="share-all" data-i18n="shareAll"></button>
+          <button type="button" class="btn" id="share-image" data-i18n="shareImageOnly"></button>
+        </div>
+        <p class="hint" data-i18n="shareHint"></p>
+      </div>
+      <div id="share-fallback" hidden>
+        <p class="hint" data-i18n="fallbackHint"></p>
+      </div>
+      <div class="row-2">
+        <button type="button" class="btn" id="save-image" data-i18n="saveImage"></button>
+        <button type="button" class="btn" id="copy-text" data-i18n="copyText"></button>
+      </div>
+      <a class="btn" id="post-x" target="_blank" rel="noopener" hidden data-i18n="postX"></a>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" id="mark-done" data-i18n="markDone"></button>
+      <button type="button" class="btn" id="share-close" data-i18n="close"></button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="day-dialog" aria-labelledby="day-title">
   <form id="day-form" method="dialog">
@@ -166,6 +241,25 @@
       syncFailed: (t) => `Googleマップ：反映に失敗しました（${t}）`, syncRetry: "もう一度反映する",
       syncOk: (t) => `Googleマップ：反映済み（${t}）`, syncNever: "Googleマップ：まだ反映していません", syncNow: "今すぐ反映する",
       syncing: "Googleマップに反映しています…",
+      pendingChanges: "まだお知らせしていない変更があります",
+      makeAnnouncement: "お知らせを作る",
+      shareHeading: "SNSでお知らせ",
+      shareLead: "カレンダーの画像と文面を作り、スマホの共有シートから X・Instagram などに投稿します。",
+      contentLabel: "内容", modeChanges: "変更のお知らせ", modeMonth: "月のカレンダー",
+      formatLabel: "画像の形", formatFeed: "フィード・X（4:5）", formatStory: "ストーリーズ（9:16）",
+      textLabel: "文面（自由に直せます）",
+      shareAll: "画像と文面を共有（X・LINE など）",
+      shareImageOnly: "画像だけ共有（Instagram 用・文面はコピー）",
+      shareHint: "共有シートで X や Instagram を選びます。Instagram ではフィード・ストーリーズを選び、コピーした文面をキャプションに貼り付けてください。",
+      fallbackHint: "このブラウザは画像の共有に対応していません。画像を保存して、各アプリから投稿してください（スマホでは共有シートが使えます）。",
+      saveImage: "画像を保存", copyText: "文面をコピー", postX: "X の投稿画面を開く（画像は手動で添付）",
+      markDone: "お知らせ済みにする", close: "閉じる",
+      copied: "文面をコピーしました", copyFailed: "コピーできませんでした。文面を長押ししてコピーしてください",
+      shared: "共有しました", markedDone: "お知らせ済みにしました",
+      shareFailed: "共有できませんでした。画像を保存して投稿してください",
+      xCount: (n) => `X の文字数: ${n} / 280`,
+      noChanges: "まだお知らせしていない変更はありません",
+      imageName: (month, story) => `calendar-${month}${story ? "-story" : ""}.png`,
     },
     en: {
       title: "Business Calendar",
@@ -187,6 +281,25 @@
       syncFailed: (t) => `Google Maps: update failed (${t})`, syncRetry: "Try again",
       syncOk: (t) => `Google Maps: up to date (${t})`, syncNever: "Google Maps: not updated yet", syncNow: "Update now",
       syncing: "Updating Google Maps…",
+      pendingChanges: "You have changes you haven't announced yet",
+      makeAnnouncement: "Create announcement",
+      shareHeading: "Announce on social media",
+      shareLead: "Create a calendar image and a message, then post them to X, Instagram, and more from your phone's share sheet.",
+      contentLabel: "Content", modeChanges: "Changes", modeMonth: "Monthly calendar",
+      formatLabel: "Image shape", formatFeed: "Feed / X (4:5)", formatStory: "Stories (9:16)",
+      textLabel: "Message (edit freely)",
+      shareAll: "Share image and message (X, etc.)",
+      shareImageOnly: "Share image only (for Instagram, message copied)",
+      shareHint: "Pick X or Instagram in the share sheet. In Instagram, choose Feed or Stories and paste the copied message as the caption.",
+      fallbackHint: "This browser can't share images. Save the image and post it from each app (the share sheet works on phones).",
+      saveImage: "Save image", copyText: "Copy message", postX: "Open X composer (attach the image yourself)",
+      markDone: "Mark as announced", close: "Close",
+      copied: "Message copied", copyFailed: "Couldn't copy. Long-press the message to copy it",
+      shared: "Shared", markedDone: "Marked as announced",
+      shareFailed: "Couldn't share. Save the image and post it yourself",
+      xCount: (n) => `X length: ${n} / 280`,
+      noChanges: "No unannounced changes",
+      imageName: (month, story) => `calendar-${month}${story ? "-story" : ""}.png`,
     },
   };
   const T = I18N[CONFIG.language] || I18N.ja;
@@ -353,6 +466,7 @@
       await load();
       toast(T.saved);
       refreshSyncLater();
+      refreshAnnounceBar();
     } catch (error) {
       toast(error.message, true);
     } finally {
@@ -371,10 +485,176 @@
       await load();
       toast(T.savedRegular);
       refreshSyncLater();
+      refreshAnnounceBar();
     } catch (error) {
       toast(error.message, true);
     }
   });
+
+  // ---- SNS でお知らせ（画像と文面を作り、OS の共有シートで共有する）----
+  const share = { mode: "changes", month: "", format: "feed", blob: null, uptoId: null, lib: null, token: 0 };
+  const imageLib = () => (share.lib ??= import("/calendar-image.js"));
+  const shareFooter = () => CONFIG.shareUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+  // X の文字数（日本語などは2文字、URL は23文字として数える）
+  function xLength(text) {
+    let n = 0;
+    for (const ch of text.replace(/https?:\/\/\S+/g, "x".repeat(23))) {
+      const c = ch.codePointAt(0);
+      n += c <= 0x10ff || (c >= 0x2000 && c <= 0x200d) || (c >= 0x2010 && c <= 0x201f) || (c >= 0x2032 && c <= 0x2037) ? 1 : 2;
+    }
+    return n;
+  }
+
+  function updateCount() {
+    const text = $("share-text").value;
+    const n = xLength(text);
+    $("share-count").textContent = T.xCount(n);
+    $("share-count").classList.toggle("over", n > 280);
+    $("post-x").href = `https://x.com/intent/post?text=${encodeURIComponent(text)}`;
+  }
+
+  async function refreshAnnounceBar() {
+    try {
+      const { draft } = await api("/api/announcement?mode=changes");
+      $("announce-bar").hidden = !draft;
+    } catch {
+      $("announce-bar").hidden = true;
+    }
+  }
+
+  async function loadDraft() {
+    const query = share.mode === "month" ? `mode=month&month=${share.month}` : "mode=changes";
+    const { draft } = await api(`/api/announcement?${query}`);
+    share.uptoId = draft?.uptoId ?? null;
+    $("share-text").value = draft?.text ?? "";
+    if (draft && share.mode === "changes") share.month = draft.months[0];
+    if (!draft) toast(T.noChanges);
+    $("mark-done").hidden = !share.uptoId;
+    updateCount();
+  }
+
+  // 画像を作ってプレビューに出す（共有ボタンを押したときにすぐ渡せるよう、先に作っておく）
+  async function renderImage() {
+    const token = ++share.token;
+    const [y, m] = share.month.split("-").map(Number);
+    $("share-month").textContent = T.monthTitle(y, m);
+    share.blob = null;
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const [lib, data] = await Promise.all([imageLib(), api(`/api/calendar?from=${share.month}-01&to=${share.month}-${pad(last)}`)]);
+    const blob = await lib.renderCalendarImage({
+      data,
+      month: share.month,
+      format: share.format,
+      language: CONFIG.language,
+      storeName: CONFIG.storeName,
+      footer: shareFooter(),
+      closedMark: CONFIG.closedMark,
+    });
+    if (token !== share.token) return; // 作っている間に設定が変わった
+    share.blob = blob;
+    const preview = $("share-preview");
+    if (preview.src.startsWith("blob:")) URL.revokeObjectURL(preview.src);
+    preview.src = URL.createObjectURL(blob);
+    preview.alt = `${T.monthTitle(y, m)} ${T.title}`;
+  }
+
+  const refreshShare = (withDraft) =>
+    (withDraft ? loadDraft() : Promise.resolve()).then(renderImage).catch((error) => toast(error.message, true));
+
+  async function openShare() {
+    share.month = today().slice(0, 7);
+    try {
+      const { draft } = await api("/api/announcement?mode=changes");
+      share.mode = draft ? "changes" : "month";
+      document.querySelector(`input[name=share-mode][value=${share.mode}]`).checked = true;
+      $("share-dialog").showModal();
+      // ファイルを共有できるブラウザ（iOS・Android・一部のデスクトップ）では共有シートを使う
+      const lib = await imageLib();
+      const probe = new File([new Blob([""], { type: "image/png" })], "probe.png", { type: "image/png" });
+      const native = lib.canShareFiles([probe]);
+      $("share-native").hidden = !native;
+      $("share-fallback").hidden = native;
+      $("post-x").hidden = native;
+      await refreshShare(true);
+    } catch (error) {
+      toast(error.message, true);
+    }
+  }
+
+  async function copyText(text, quiet = false) {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (!quiet) toast(T.copied);
+      return true;
+    } catch {
+      $("share-text").select();
+      const ok = document.execCommand && document.execCommand("copy");
+      if (!quiet) toast(ok ? T.copied : T.copyFailed, !ok);
+      return ok;
+    }
+  }
+
+  async function markDone() {
+    if (!share.uptoId) return;
+    await api("/api/announcements", { method: "POST", body: JSON.stringify({ uptoId: share.uptoId }) });
+    share.uptoId = null;
+    $("mark-done").hidden = true;
+    refreshAnnounceBar();
+    toast(T.markedDone);
+  }
+
+  async function doShare(withText) {
+    if (!share.blob || !share.lib) return;
+    const lib = await share.lib;
+    const text = $("share-text").value;
+    // Instagram は共有シートの文面を受け取らないので、先にコピーしておく（待たずにすぐ共有シートを開く）
+    if (!withText) copyText(text, true);
+    const file = lib.toFile(share.blob, T.imageName(share.month, share.format === "story"));
+    try {
+      const result = await lib.shareFiles({ files: [file], ...(withText && { text }) });
+      if (result === "shared") {
+        toast(T.shared);
+        await markDone();
+      } else if (result === "unsupported") {
+        toast(T.shareFailed, true);
+      }
+    } catch {
+      toast(T.shareFailed, true);
+    }
+  }
+
+  $("announce-open").addEventListener("click", openShare);
+  $("share-open").addEventListener("click", openShare);
+  $("share-close").addEventListener("click", () => $("share-dialog").close());
+  $("share-text").addEventListener("input", updateCount);
+  $("share-all").addEventListener("click", () => doShare(true));
+  $("share-image").addEventListener("click", () => doShare(false));
+  $("copy-text").addEventListener("click", () => copyText($("share-text").value));
+  $("save-image").addEventListener("click", async () => {
+    if (share.blob) (await share.lib).downloadBlob(share.blob, T.imageName(share.month, share.format === "story"));
+  });
+  $("mark-done").addEventListener("click", () => markDone().catch((error) => toast(error.message, true)));
+  document.querySelectorAll("input[name=share-mode]").forEach((input) =>
+    input.addEventListener("change", () => {
+      share.mode = input.value;
+      refreshShare(true);
+    })
+  );
+  document.querySelectorAll("input[name=share-format]").forEach((input) =>
+    input.addEventListener("change", () => {
+      share.format = input.value;
+      refreshShare(false);
+    })
+  );
+  const moveShareMonth = (delta) => {
+    const [y, m] = share.month.split("-").map(Number);
+    const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+    share.month = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
+    refreshShare(share.mode === "month");
+  };
+  $("share-prev").addEventListener("click", () => moveShareMonth(-1));
+  $("share-next").addEventListener("click", () => moveShareMonth(1));
 
   const move = (delta) => {
     const d = new Date(Date.UTC(state.year, state.month - 1 + delta, 1));
@@ -391,6 +671,7 @@
   api("/api/me").then(({ email }) => ($("who").textContent = email)).catch(() => {});
   load().catch((error) => toast(error.message, true));
   loadSync();
+  refreshAnnounceBar();
 })();
 </script>
 </body>

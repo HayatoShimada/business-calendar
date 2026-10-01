@@ -8,6 +8,8 @@
 - ⚡ **再デプロイ不要**: サイトはブラウザから公開APIを読むので、保存した瞬間に反映される
 - 🧩 **どんなサイトにも埋め込める**: `<script>` 1行で「営業状況」と「カレンダー」の部品（Web Components）が使える
 - 🔐 **ログインは3方式から選べる**: メール / Google ログイン、登録した端末だけ（Cloudflare One）、Tailscale 内の端末だけ（tsidp）
+- 📣 **SNS でお知らせ**: 変更内容から文面とカレンダー画像を作り、スマホの共有シートで X・Instagram に投稿（API・費用は不要）
+- 📤 **カレンダー画像の共有**: サイトの訪問者も iOS / Android / Web それぞれ標準の共有シートで共有できる
 - 🗺️ **Googleマップに自動反映**（任意）: Google Business Profile API で通常営業時間・特別営業時間を更新
 - 🌏 **日本語 / 英語**、お店のタイムゾーンに対応
 
@@ -88,12 +90,17 @@ Access アプリを作ったら、`wrangler.jsonc` の `ACCESS_TEAM_DOMAIN`（�
 | `lang` | `ja` / `en`（既定はページの `<html lang>`） |
 | `closed-mark` | 休業日の印。`cat`（丸くなった猫）か、省略で丸 |
 | `src` | APIのURL（既定は widget.js を読み込んだドメイン） |
+| `share` | 「カレンダーを共有」ボタンを出す（[docs/share.md](docs/share.md)） |
 
 見た目は CSS 変数で変えられます: `--bc-ink`（文字）、`--bc-muted`（補助）、`--bc-rule`（罫線）、`--bc-surface`（空欄の面）、`--bc-closed`（休業の印）、`--bc-open-bg` / `--bc-open-ink`（営業中の表示）。部品は Shadow DOM の中にあり、`::part(status)` `::part(table)` などでも調整できます。
 
 React / Next.js などで独自に表示したい場合は、公開API（下記）を直接読んでください。[85-Store の実装例](https://github.com/HayatoShimada/85store/blob/main/lib/business-calendar.ts) もあります。
 
-### 4. （任意）Googleマップに自動反映する
+### 4. SNS でお知らせする
+
+管理画面の「お知らせを作る」で、変更内容（または月のまとめ）から文面とカレンダー画像（フィード 4:5 / ストーリーズ 9:16）を作り、共有シートで X・Instagram などに投稿します。詳しくは **[docs/share.md](docs/share.md)**。
+
+### 5. （任意）Googleマップに自動反映する
 
 保存のたびに、Googleマップの通常営業時間と特別営業時間（今日から180日先まで）を管理画面の内容に合わせます。手順は **[docs/google.md](docs/google.md)**。
 
@@ -109,7 +116,8 @@ React / Next.js などで独自に表示したい場合は、公開API（下記�
     "2026-10-07": { "kind": "closed", "note": "仕入れのため" }
   },
   "updatedAt": "2026-10-01T08:28:58.015Z",
-  "timezone": "Asia/Tokyo"
+  "timezone": "Asia/Tokyo",
+  "store": { "name": "My Store", "url": "https://example.com/hours", "closedMark": "cat" }
 }
 ```
 
@@ -126,7 +134,9 @@ React / Next.js などで独自に表示したい場合は、公開API（下記�
 | `ADMIN_EMAILS` | 管理画面を使えるメールアドレス（カンマ区切り） |
 | `TIMEZONE` | お店のタイムゾーン（IANA 名、既定 `Asia/Tokyo`） |
 | `LANGUAGE` | 管理画面とメッセージの言語（`ja` / `en`） |
-| `STORE_NAME` | 管理画面の見出しに出す店名 |
+| `STORE_NAME` | 管理画面の見出し・お知らせ文・カレンダー画像に出す店名 |
+| `SHARE_URL` | お知らせ文・カレンダー画像に載せるURL（営業日カレンダーを載せたページ） |
+| `IMAGE_CLOSED_MARK` | カレンダー画像の休業日の印（`cat` / `dot`） |
 
 Googleマップ連携の値（`GOOGLE_CLIENT_ID` など）は secret として登録します（[docs/google.md](docs/google.md)）。
 

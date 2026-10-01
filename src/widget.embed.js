@@ -31,6 +31,9 @@
       legendClosed: "お休み",
       legendHours: "時刻の表示がある日は営業時間が変わります",
       loading: "営業時間を読み込んでいます",
+      share: "カレンダーを共有",
+      shareText: (name) => (name ? `${name}の営業日カレンダー` : "営業日カレンダー"),
+      saved: "画像を保存し、リンクをコピーしました",
       dayLabel: (m, d, w) => `${m}月${d}日（${w}）`,
       noteSep: "、",
       listItem: (m, d, text) => `${m}/${d} ${text}`,
@@ -49,6 +52,9 @@
       legendClosed: "Closed",
       legendHours: "Days with a time have special hours",
       loading: "Loading opening hours",
+      share: "Share calendar",
+      shareText: (name) => (name ? `${name} opening calendar` : "Opening calendar"),
+      saved: "Image saved and link copied",
       dayLabel: (m, d, w) => `${w}, ${m}/${d}`,
       noteSep: ", ",
       listItem: (m, d, text) => `${m}/${d} ${text}`,
@@ -145,6 +151,7 @@
     connectedCallback() {
       if (!this.shadowRoot) this.attachShadow({ mode: "open" });
       const api = (this.getAttribute("src") || SCRIPT_ORIGIN).replace(/\/$/, "");
+      this.api = api;
       this.t = I18N[(this.getAttribute("lang") || document.documentElement.lang || "ja").slice(0, 2)] || I18N.ja;
       this.store = getStore(api);
       this.unsubscribe = this.store.subscribe(() => this.render());
@@ -189,6 +196,7 @@
 
   // ---- <business-calendar months="2"> ----
   const CAT = `<svg viewBox="0 0 32 26" width="24" height="20" aria-hidden="true" fill="currentColor"><path d="M6 5 9.5 10C11.5 9.2 13.6 8.8 16 8.8s4.5.4 6.5 1.2L26 5l.6 7.4c2.4 2.2 3.9 4.9 3.9 7.6 0 4-6.5 6-14.5 6S1.5 24 1.5 20c0-2.7 1.5-5.4 3.9-7.6L6 5Z"/></svg>`;
+  const SHARE_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>`;
   const DOT = `<svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" fill="currentColor"><circle cx="5" cy="5" r="4"/></svg>`;
 
   class BusinessCalendar extends Base {
@@ -204,10 +212,13 @@
       const today = nowIn(data.timezone || "Asia/Tokyo").date;
       const [y0, m0] = today.split("-").map(Number);
       let html = "";
+      this.shownMonths = [];
       for (let i = 0; i < months; i++) {
         const d = new Date(Date.UTC(y0, m0 - 1 + i, 1));
+        this.shownMonths.push(`${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`);
         html += this.month(data, d.getUTCFullYear(), d.getUTCMonth() + 1, today, mark);
       }
+      const sharing = this.hasAttribute("share");
       this.shadowRoot.innerHTML = `
         <style>${BASE_STYLE}
           .months { display: grid; gap: 2em; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
@@ -224,9 +235,83 @@
           ul { margin: .75em 0 0; padding: 0; list-style: none; font-size: .875em; }
           .legend { margin-top: 1em; display: flex; flex-wrap: wrap; gap: .25em 1em; align-items: center; font-size: .75em; }
           .legend span { display: inline-flex; align-items: center; gap: .3em; }
+          .share { margin-top: 1em; min-height: 44px; padding: 0 1.25em; border: 1px solid var(--bc-ink, currentColor); background: transparent; color: inherit; font: inherit; font-weight: 600; font-size: .875em; cursor: pointer; display: inline-flex; align-items: center; gap: .5em; }
+          .share:disabled { opacity: .5; cursor: progress; }
+          .share-status { font-size: .75em; margin: .5em 0 0; }
         </style>
         <div class="months" part="months">${html}</div>
-        <p class="legend muted" part="legend"><span><span class="mark">${mark}</span>${t.legendClosed}</span><span>${t.legendHours}</span></p>`;
+        <p class="legend muted" part="legend"><span><span class="mark">${mark}</span>${t.legendClosed}</span><span>${t.legendHours}</span></p>
+        ${sharing ? `<button type="button" class="share" part="share-button">${SHARE_ICON}${t.share}</button><p class="share-status muted" role="status" aria-live="polite"></p>` : ""}`;
+      if (sharing) {
+        this.shadowRoot.querySelector(".share").addEventListener("click", () => this.share());
+        this.prepareShare(data);
+      }
+    }
+
+    // ---- 共有（iOS: 共有シート / Android: Sharesheet / デスクトップ: Web Share API、使えなければ画像を保存）----
+    imageLib() {
+      return (this.lib ??= import(`${this.api}/calendar-image.js`));
+    }
+
+    // タップした瞬間に共有シートを開けるよう、画像は先に作っておく
+    prepareShare(data) {
+      const key = `${data.updatedAt}|${this.shownMonths.join(",")}`;
+      if (this.shareKey === key) return;
+      this.shareKey = key;
+      this.files = null;
+      const run = () => this.buildFiles(data, key).catch(() => {});
+      if ("requestIdleCallback" in window) requestIdleCallback(run, { timeout: 3000 });
+      else setTimeout(run, 1000);
+    }
+
+    async buildFiles(data, key = this.shareKey) {
+      const lib = await this.imageLib();
+      const style = getComputedStyle(this);
+      const color = (name) => style.getPropertyValue(name).trim() || undefined;
+      const storeName = this.getAttribute("store-name") || data.store?.name || "";
+      const url = data.store?.url || location.origin;
+      const lang = (this.getAttribute("lang") || document.documentElement.lang || "ja").slice(0, 2) === "en" ? "en" : "ja";
+      const files = [];
+      for (const month of this.shownMonths) {
+        const blob = await lib.renderCalendarImage({
+          data,
+          month,
+          language: lang,
+          storeName,
+          footer: url.replace(/^https?:\/\//, "").replace(/\/$/, ""),
+          closedMark: this.getAttribute("closed-mark") || data.store?.closedMark || "dot",
+          fonts: { sans: this.getAttribute("image-font") || style.fontFamily, display: this.getAttribute("image-display-font") || style.fontFamily },
+          colors: { closed: color("--bc-image-closed"), hours: color("--bc-image-hours") },
+        });
+        files.push(lib.toFile(blob, `calendar-${month}.png`));
+      }
+      if (key === this.shareKey) this.files = files;
+      return files;
+    }
+
+    async share() {
+      const button = this.shadowRoot.querySelector(".share");
+      const status = this.shadowRoot.querySelector(".share-status");
+      const data = this.store.data;
+      if (!data) return;
+      button.disabled = true;
+      try {
+        const lib = await this.imageLib();
+        const files = this.files || (await this.buildFiles(data));
+        const url = this.getAttribute("share-url") || location.href;
+        const text = this.getAttribute("share-text") || this.t.shareText(this.getAttribute("store-name") || data.store?.name);
+        const result = await lib.shareFiles({ files, text, url });
+        if (result === "unsupported") {
+          // 共有シートが使えないブラウザ: 画像を保存し、リンクをコピー
+          files.forEach((file) => lib.downloadBlob(file, file.name));
+          await navigator.clipboard?.writeText(url).catch(() => {});
+          status.textContent = this.t.saved;
+        }
+      } catch {
+        // 共有をやめた・失敗したときは何もしない
+      } finally {
+        button.disabled = false;
+      }
     }
 
     month(data, year, month, today, mark) {
