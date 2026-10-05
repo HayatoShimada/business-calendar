@@ -104,6 +104,17 @@ For a custom UI in React / Next.js etc., read the public API (below) directly. S
 
 On every save, regular hours and special hours (today through 180 days ahead) on Google Maps are updated to match. See **[docs/google.md](docs/google.md)** (Japanese).
 
+### 6. (Optional) Notify your website on every save (webhook)
+
+If your website caches the calendar on the server (for example, to show closed days in structured data or llms.txt for AI and search), the Worker can notify it on every save so it refetches immediately.
+
+- `WEBHOOK_URL` (vars): the URL to POST a JSON body to
+- `WEBHOOK_SECRET` (secret, `npx wrangler secret put WEBHOOK_SECRET`): used for the HMAC-SHA256 (hex) signature of the body
+- `WEBHOOK_SIGNATURE_HEADER` (vars, default `x-signature`): the header that carries the signature
+- `WEBHOOK_BODY` (vars, optional): JSON merged into the body (e.g. `{"api":"business-calendar"}`). The body also contains `event: "calendar.updated"` and `updatedAt`
+
+A failed notification never blocks saving (the website refetches when its own cache expires).
+
 ## Public API
 
 `GET https://calendar.example.com/v1/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD` (defaults to 7 days ago through 120 days ahead; up to 400 days)
@@ -134,6 +145,7 @@ On every save, regular hours and special hours (today through 180 days ahead) on
 | `STORE_NAME` | Store name used in the admin header, announcements, and calendar images |
 | `SHARE_URL` | URL included in announcements and calendar images (the page with your calendar) |
 | `IMAGE_CLOSED_MARK` | Marker for closed days in calendar images (`cat` / `dot`) |
+| `WEBHOOK_URL` / `WEBHOOK_SIGNATURE_HEADER` / `WEBHOOK_BODY` | Optional. Where to notify on every save (step 6 above). The signing key is the `WEBHOOK_SECRET` secret |
 
 Google Maps credentials (`GOOGLE_CLIENT_ID`, etc.) are stored as secrets ([docs/google.md](docs/google.md)).
 

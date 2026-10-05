@@ -4,6 +4,7 @@ import calendarImageJs from "./calendar-image.embed.js";
 import { composeChanges, composeMonth } from "./announce";
 import { AccessError, requireAdmin, type AccessEnv } from "./access";
 import { readSyncStatus, syncToGoogle, type GoogleEnv } from "./google";
+import { notifyWebhook, type WebhookEnv } from "./webhook";
 import { getMessages, type Messages } from "./i18n";
 import { DEFAULT_TIMEZONE, todayIn } from "./time";
 import {
@@ -20,7 +21,7 @@ import {
   updateRegular,
 } from "./calendar";
 
-interface Env extends AccessEnv, GoogleEnv {
+interface Env extends AccessEnv, GoogleEnv, WebhookEnv {
   DB: D1Database;
   ADMIN_HOST: string;
   TIMEZONE?: string; // お店のタイムゾーン（IANA 名）。既定は Asia/Tokyo
@@ -155,8 +156,11 @@ async function handleAdmin(request: Request, env: Env, url: URL, ctx: ExecutionC
     return json(await syncToGoogle(env));
   }
 
-  // 保存のたびに、応答を返したあとで Googleマップにも反映する（未設定なら何もしない）
-  const syncLater = () => ctx.waitUntil(syncToGoogle(env));
+  // 保存のたびに、応答を返したあとで Googleマップにも反映し、webhook で知らせる（未設定なら何もしない）
+  const syncLater = () => {
+    ctx.waitUntil(syncToGoogle(env));
+    ctx.waitUntil(notifyWebhook(env));
+  };
 
   if (url.pathname === "/api/settings" && request.method === "PUT") {
     await updateRegular(env.DB, parseRegular(await request.json(), m), email);
