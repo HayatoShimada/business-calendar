@@ -104,6 +104,17 @@ React / Next.js などで独自に表示したい場合は、公開API（下記�
 
 保存のたびに、Googleマップの通常営業時間と特別営業時間（今日から180日先まで）を管理画面の内容に合わせます。手順は **[docs/google.md](docs/google.md)**。
 
+### 6. （任意）保存のたびにサイトへ知らせる（webhook）
+
+サイトがカレンダーをサーバー側でキャッシュしている場合（AI・検索向けの構造化データや llms.txt に休業日を出しているときなど）、保存のたびに知らせて、すぐ取り直してもらえます。
+
+- `WEBHOOK_URL`（vars）: 知らせる先の URL。POST で JSON を送ります
+- `WEBHOOK_SECRET`（secret。`npx wrangler secret put WEBHOOK_SECRET`）: 本文の HMAC-SHA256（16進）の署名に使います
+- `WEBHOOK_SIGNATURE_HEADER`（vars、既定 `x-signature`）: 署名を入れるヘッダー名
+- `WEBHOOK_BODY`（vars、任意）: 本文に足す JSON（例: `{"api":"business-calendar"}`）。本文にはほかに `event: "calendar.updated"` と `updatedAt` が入ります
+
+送れなくても保存は止めません（サイトは自分のキャッシュの期限で取り直します）。
+
 ## 公開API
 
 `GET https://calendar.example.com/v1/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD`（省略時は「7日前〜120日後」、最大400日）
@@ -137,6 +148,7 @@ React / Next.js などで独自に表示したい場合は、公開API（下記�
 | `STORE_NAME` | 管理画面の見出し・お知らせ文・カレンダー画像に出す店名 |
 | `SHARE_URL` | お知らせ文・カレンダー画像に載せるURL（営業日カレンダーを載せたページ） |
 | `IMAGE_CLOSED_MARK` | カレンダー画像の休業日の印（`cat` / `dot`） |
+| `WEBHOOK_URL` / `WEBHOOK_SIGNATURE_HEADER` / `WEBHOOK_BODY` | 任意。保存のたびに知らせる先（上の「6.」）。署名の秘密は secret の `WEBHOOK_SECRET` |
 
 Googleマップ連携の値（`GOOGLE_CLIENT_ID` など）は secret として登録します（[docs/google.md](docs/google.md)）。
 

@@ -41,6 +41,10 @@
     "SHARE_URL": "https://example.com/hours",
     // カレンダー画像の休業日の印（cat / dot）
     "IMAGE_CLOSED_MARK": "dot"
+    // 任意: 保存のたびに知らせる先（README の「webhook」）。秘密は `npx wrangler secret put WEBHOOK_SECRET`
+    // "WEBHOOK_URL": "https://example.com/api/revalidate",
+    // "WEBHOOK_SIGNATURE_HEADER": "x-signature",
+    // "WEBHOOK_BODY": "{\"api\":\"business-calendar\"}"
   },
   "observability": { "enabled": true }
 }
