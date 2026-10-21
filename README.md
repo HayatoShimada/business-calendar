@@ -32,7 +32,7 @@
 ## 必要なもの
 
 - Cloudflare アカウント（無料）と、Cloudflare で DNS を管理しているドメイン
-- Node.js 20 以上
+- Node.js 22 以上
 - 任意: Google Business Profile API の利用承認（Googleマップへの自動反映）
 - 任意: Tailscale（tailnet 内の端末だけに限定したい場合）
 

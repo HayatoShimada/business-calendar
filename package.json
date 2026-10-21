@@ -15,15 +15,15 @@
     "test:api": "bash test/api-test.sh"
   },
   "dependencies": {
-    "jose": "^6.2.12"
+    "jose": "^6.2.13"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261001.1",
-    "tsx": "^4.20.5",
+    "@cloudflare/workers-types": "^5.20261021.1",
+    "tsx": "^4.23.15",
     "typescript": "^5",
-    "wrangler": "^4.145.0"
+    "wrangler": "^4.151.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

@@ -32,7 +32,7 @@ Visitors ──▶ calendar.example.com/v1/calendar (public, GET only, no cache)
 ## Requirements
 
 - A Cloudflare account (free) and a domain whose DNS is on Cloudflare
-- Node.js 20+
+- Node.js 22+
 - Optional: approved access to the Google Business Profile API (for Google Maps sync)
 - Optional: Tailscale (to restrict logins to devices on your tailnet)
 
