@@ -135,3 +135,93 @@ export async function syncToGoogle(env: GoogleEnv): Promise<SyncStatus> {
   }
   return readSyncStatus(env);
 }
+
+// ---- 過去の特別営業時間（臨時休業）を Googleマップから取り込む ----
+// 管理画面を使い始める前の臨時休業は D1 に無いので、売上分析（営業日の数え方）がずれる。
+// Googleマップに残っている過去の特別営業時間を、管理画面のボタンから取り込めるようにする。
+
+interface GoogleDate {
+  year: number;
+  month: number;
+  day: number;
+}
+interface GoogleTime {
+  hours?: number;
+  minutes?: number;
+}
+export interface GoogleSpecialHourPeriod {
+  startDate: GoogleDate;
+  endDate?: GoogleDate;
+  openTime?: GoogleTime;
+  closeTime?: GoogleTime;
+  closed?: boolean;
+}
+export interface ImportCandidate {
+  date: string;
+  kind: "closed" | "hours";
+  opens: string | null;
+  closes: string | null;
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const ymdOf = (d: GoogleDate) => `${d.year}-${pad(d.month)}-${pad(d.day)}`;
+const hmOf = (t: GoogleTime = {}) => `${pad(t.hours ?? 0)}:${pad(t.minutes ?? 0)}`;
+
+// 特別営業時間を1日ずつにする。休業は期間（startDate〜endDate）で入っていることがある
+export function expandSpecialHourPeriods(periods: GoogleSpecialHourPeriod[]): ImportCandidate[] {
+  const result = new Map<string, ImportCandidate>();
+  for (const p of periods) {
+    if (!p.startDate) continue;
+    const start = Date.UTC(p.startDate.year, p.startDate.month - 1, p.startDate.day);
+    const endDate = p.closed && p.endDate ? p.endDate : p.startDate;
+    const end = Date.UTC(endDate.year, endDate.month - 1, endDate.day);
+    for (let t = start, n = 0; t <= end && n < 366; t += 86400000, n++) {
+      const d = new Date(t);
+      const date = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+      result.set(
+        date,
+        p.closed
+          ? { date, kind: "closed", opens: null, closes: null }
+          : { date, kind: "hours", opens: hmOf(p.openTime), closes: hmOf(p.closeTime) }
+      );
+    }
+  }
+  return [...result.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Googleマップにある「今日より前」の特別営業時間のうち、まだ D1 に無い日
+export async function readPastSpecialHours(env: GoogleEnv): Promise<ImportCandidate[]> {
+  const accessToken = await getAccessToken(env);
+  const base = env.GOOGLE_API_BASE || "https://mybusinessbusinessinformation.googleapis.com";
+  const response = await fetch(`${base}/v1/locations/${env.GOOGLE_LOCATION_ID}?readMask=specialHours`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 300);
+    throw new Error(getMessages(env.LANGUAGE).googlePatch(response.status, detail));
+  }
+  const body = (await response.json()) as { specialHours?: { specialHourPeriods?: GoogleSpecialHourPeriod[] } };
+  const today = todayIn(env.TIMEZONE || DEFAULT_TIMEZONE);
+  const past = expandSpecialHourPeriods(body.specialHours?.specialHourPeriods ?? []).filter((c) => c.date < today);
+  if (past.length === 0) return [];
+  const existing = await env.DB.prepare("SELECT date FROM days WHERE date BETWEEN ? AND ?")
+    .bind(past[0].date, past[past.length - 1].date)
+    .all<{ date: string }>();
+  const known = new Set((existing.results ?? []).map((r) => r.date));
+  return past.filter((c) => !known.has(c.date));
+}
+
+// 取り込む。管理画面で設定済みの日は上書きしない。過去の日なので、お知らせ（changes）には載せない
+export async function importPastSpecialHours(env: GoogleEnv, by: string): Promise<number> {
+  const candidates = await readPastSpecialHours(env);
+  if (candidates.length === 0) return 0;
+  const now = new Date().toISOString();
+  await env.DB.batch(
+    candidates.map((c) =>
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO days (date, kind, opens, closes, note, updated_at, updated_by) VALUES (?, ?, ?, ?, NULL, ?, ?)`
+      ).bind(c.date, c.kind, c.opens, c.closes, now, by)
+    )
+  );
+  return candidates.length;
+}
