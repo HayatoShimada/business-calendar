@@ -241,6 +241,10 @@
       syncFailed: (t) => `Googleマップ：反映に失敗しました（${t}）`, syncRetry: "もう一度反映する",
       syncOk: (t) => `Googleマップ：反映済み（${t}）`, syncNever: "Googleマップ：まだ反映していません", syncNow: "今すぐ反映する",
       syncing: "Googleマップに反映しています…",
+      pastImport: "過去の臨時休業をGoogleから取り込む", pastLoading: "Googleマップを確認しています…",
+      pastNone: "取り込む過去の特別営業時間はありません（Googleマップに残っていないか、取り込み済みです）",
+      pastConfirm: (n, list) => `Googleマップに残っている過去の特別営業時間 ${n}日分を取り込みます。\n（管理画面で設定済みの日は変えません。Googleマップへの反映とお知らせはしません）\n\n${list}`,
+      pastDone: (n) => `過去の特別営業時間を ${n}日分取り込みました`, pastClosed: "休業",
       pendingChanges: "まだお知らせしていない変更があります",
       makeAnnouncement: "お知らせを作る",
       shareHeading: "SNSでお知らせ",
@@ -281,6 +285,10 @@
       syncFailed: (t) => `Google Maps: update failed (${t})`, syncRetry: "Try again",
       syncOk: (t) => `Google Maps: up to date (${t})`, syncNever: "Google Maps: not updated yet", syncNow: "Update now",
       syncing: "Updating Google Maps…",
+      pastImport: "Import past closures from Google", pastLoading: "Checking Google Maps…",
+      pastNone: "No past special hours to import (none left on Google Maps, or already imported)",
+      pastConfirm: (n, list) => `Import ${n} past day(s) of special hours from Google Maps?\n(Days already set here are kept. Nothing is sent to Google Maps or announced.)\n\n${list}`,
+      pastDone: (n) => `Imported ${n} past day(s)`, pastClosed: "closed",
       pendingChanges: "You have changes you haven't announced yet",
       makeAnnouncement: "Create announcement",
       shareHeading: "Announce on social media",
@@ -354,13 +362,48 @@
         el.innerHTML = `<span>${escapeHtml(T.syncFailed(fmt(s.lastAttemptAt)))} ${escapeHtml(s.lastError)}</span><button type="button" class="btn" id="sync-retry">${T.syncRetry}</button>`;
         $("sync-retry").addEventListener("click", retrySync);
       } else if (s.lastSuccessAt) {
-        el.textContent = T.syncOk(fmt(s.lastSuccessAt));
+        el.innerHTML = `<span>${escapeHtml(T.syncOk(fmt(s.lastSuccessAt)))}</span>`;
       } else {
         el.innerHTML = `<span>${T.syncNever}</span><button type="button" class="btn" id="sync-retry">${T.syncNow}</button>`;
         $("sync-retry").addEventListener("click", retrySync);
       }
+      if (s.configured) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "btn";
+        b.textContent = T.pastImport;
+        b.addEventListener("click", importPast);
+        el.appendChild(b);
+      }
     } catch {
       el.textContent = "";
+    }
+  }
+
+  // 管理画面を使う前の臨時休業を、Googleマップの特別営業時間から取り込む（売上分析で営業日を正しく数えるため）
+  async function importPast(e) {
+    const button = e.currentTarget;
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = T.pastLoading;
+    try {
+      const { candidates } = await api("/api/google/past-special-hours");
+      if (!candidates.length) {
+        alert(T.pastNone);
+        return;
+      }
+      const list = candidates
+        .map((c) => `${c.date} ${c.kind === "closed" ? T.pastClosed : `${c.opens}〜${c.closes}`}`)
+        .join("\n");
+      if (!confirm(T.pastConfirm(candidates.length, list))) return;
+      const { imported } = await api("/api/google/past-special-hours", { method: "POST", body: "{}" });
+      alert(T.pastDone(imported));
+      load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
     }
   }
 

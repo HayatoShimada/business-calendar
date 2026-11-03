@@ -23,3 +23,26 @@ test("特別営業時間は日付順で、休業と時間変更を表す", () =>
     closed: false,
   });
 });
+
+test("過去の特別営業時間は1日ずつに展開し、休業の期間も日ごとにする", async () => {
+  const { expandSpecialHourPeriods } = await import("../../src/google");
+  const rows = expandSpecialHourPeriods([
+    { startDate: { year: 2026, month: 8, day: 13 }, endDate: { year: 2026, month: 8, day: 15 }, closed: true },
+    {
+      startDate: { year: 2026, month: 8, day: 1 },
+      endDate: { year: 2026, month: 8, day: 1 },
+      openTime: { hours: 13, minutes: 30 },
+      closeTime: { hours: 18 },
+      closed: false,
+    },
+  ]);
+  assert.deepEqual(
+    rows.map((r) => [r.date, r.kind, r.opens, r.closes]),
+    [
+      ["2026-08-01", "hours", "13:30", "18:00"],
+      ["2026-08-13", "closed", null, null],
+      ["2026-08-14", "closed", null, null],
+      ["2026-08-15", "closed", null, null],
+    ]
+  );
+});

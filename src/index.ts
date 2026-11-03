@@ -3,7 +3,7 @@ import widgetJs from "./widget.embed.js";
 import calendarImageJs from "./calendar-image.embed.js";
 import { composeChanges, composeMonth } from "./announce";
 import { AccessError, requireAdmin, type AccessEnv } from "./access";
-import { readSyncStatus, syncToGoogle, type GoogleEnv } from "./google";
+import { importPastSpecialHours, isGoogleConfigured, readPastSpecialHours, readSyncStatus, syncToGoogle, type GoogleEnv } from "./google";
 import { notifyWebhook, type WebhookEnv } from "./webhook";
 import { getMessages, type Messages } from "./i18n";
 import { DEFAULT_TIMEZONE, todayIn } from "./time";
@@ -154,6 +154,18 @@ async function handleAdmin(request: Request, env: Env, url: URL, ctx: ExecutionC
   // Googleマップへの反映をやり直す（結果を待って返す）
   if (url.pathname === "/api/sync" && request.method === "POST") {
     return json(await syncToGoogle(env));
+  }
+
+  // Googleマップに残っている過去の特別営業時間（管理画面を使う前の臨時休業）を見る・取り込む。
+  // 取り込むのは D1 に無い日だけ。過去の日なので Googleマップへの反映やお知らせはしない
+  if (url.pathname === "/api/google/past-special-hours" && (request.method === "GET" || request.method === "POST")) {
+    if (!isGoogleConfigured(env)) return json({ error: "Google is not configured" }, { status: 400 });
+    try {
+      if (request.method === "GET") return json({ candidates: await readPastSpecialHours(env) });
+      return json({ imported: await importPastSpecialHours(env, email) });
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : String(error) }, { status: 502 });
+    }
   }
 
   // 保存のたびに、応答を返したあとで Googleマップにも反映し、webhook で知らせる（未設定なら何もしない）
