@@ -9,6 +9,11 @@
 // 2. 店舗（ロケーション）を選ぶ
 // 3. Client ID / Secret / リフレッシュトークン / ロケーションID を Worker の secret に登録する（画面には表示しない）
 // 4. --import を付けると、Googleマップに今ある「今日以降の特別営業時間」を D1 に取り込む（管理画面で設定済みの日は上書きしない）
+//
+// 過去の臨時休業だけを取り込む（売上分析で営業日を正しく数えるため）:
+//   GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... node scripts/google-setup.mjs --import-past --dry-run
+//   --import-past は「今日より前」の特別営業時間を取り込み、secret の登録はしない。
+//   --dry-run を付けると、取り込む内容を表示するだけで D1 には書かない。
 
 import http from "node:http";
 import { spawn } from "node:child_process";
@@ -113,8 +118,8 @@ async function chooseLocation(accessToken) {
   return location;
 }
 
-// 4. Googleマップの今日以降の特別営業時間を D1 に取り込む
-async function importSpecialHours(accessToken, locationName) {
+// 4. Googleマップの特別営業時間を D1 に取り込む（past=true なら今日より前、false なら今日以降）
+async function importSpecialHours(accessToken, locationName, { past = false, dryRun = false } = {}) {
   const loc = await getJson(`https://mybusinessbusinessinformation.googleapis.com/v1/${locationName}?readMask=specialHours`, accessToken);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const pad = (n) => String(n).padStart(2, "0");
@@ -122,15 +127,33 @@ async function importSpecialHours(accessToken, locationName) {
   const hm = (t = {}) => `${pad(t.hours ?? 0)}:${pad(t.minutes ?? 0)}`;
   const q = (v) => (v === null ? "NULL" : `'${String(v).replaceAll("'", "''")}'`);
 
+  // 休業は期間（startDate〜endDate）で入っていることがあるので、1日ずつに展開する
+  const expand = (p) => {
+    const start = new Date(Date.UTC(p.startDate.year, p.startDate.month - 1, p.startDate.day));
+    const endDate = p.closed && p.endDate ? p.endDate : p.startDate;
+    const end = new Date(Date.UTC(endDate.year, endDate.month - 1, endDate.day));
+    const days = [];
+    for (let d = start; d <= end && days.length < 366; d = new Date(d.getTime() + 86400000)) {
+      days.push({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() });
+    }
+    return days.map((date) => ({ ...p, startDate: date }));
+  };
   const rows = (loc.specialHours?.specialHourPeriods ?? [])
-    .filter((p) => ymd(p.startDate) >= today)
+    .flatMap(expand)
+    .filter((p) => (past ? ymd(p.startDate) < today : ymd(p.startDate) >= today))
     .map((p) =>
       p.closed
         ? [ymd(p.startDate), "closed", null, null]
         : [ymd(p.startDate), "hours", hm(p.openTime), hm(p.closeTime)]
-    );
+    )
+    .sort(([a], [b]) => a.localeCompare(b));
   if (rows.length === 0) {
-    console.log("取り込む特別営業時間はありません");
+    console.log(past ? "Googleマップに過去の特別営業時間は残っていません" : "取り込む特別営業時間はありません");
+    return;
+  }
+  if (dryRun) {
+    console.log(`取り込み候補 ${rows.length} 件（--dry-run のため書き込みません）:`);
+    for (const [date, kind, opens, closes] of rows) console.log(`  ${date} ${kind === "closed" ? "休業" : `${opens}〜${closes}`}`);
     return;
   }
   const values = rows
@@ -150,7 +173,14 @@ const tokens = await authorize();
 const location = await chooseLocation(tokens.access_token);
 const locationId = location.name.replace(/^locations\//, "");
 
-if (process.argv.includes("--import")) await importSpecialHours(tokens.access_token, location.name);
+if (process.argv.includes("--import-past")) {
+  // 過去分の取り込みだけ。secret（連携の設定）には触らない
+  await importSpecialHours(tokens.access_token, location.name, { past: true, dryRun: process.argv.includes("--dry-run") });
+  process.exit(0);
+}
+if (process.argv.includes("--import")) {
+  await importSpecialHours(tokens.access_token, location.name, { dryRun: process.argv.includes("--dry-run") });
+}
 
 // 3. Worker の secret に登録（値は表示しない）
 for (const [name, value] of [
