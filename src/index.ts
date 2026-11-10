@@ -5,6 +5,7 @@ import { composeChanges, composeMonth } from "./announce";
 import { AccessError, requireAdmin, type AccessEnv } from "./access";
 import { importPastSpecialHours, isGoogleConfigured, readPastSpecialHours, readSyncStatus, syncToGoogle, type GoogleEnv } from "./google";
 import { notifyWebhook, type WebhookEnv } from "./webhook";
+import { handleInsights, type InsightsEnv } from "./insights";
 import { getMessages, type Messages } from "./i18n";
 import { DEFAULT_TIMEZONE, todayIn } from "./time";
 import {
@@ -21,7 +22,7 @@ import {
   updateRegular,
 } from "./calendar";
 
-interface Env extends AccessEnv, GoogleEnv, WebhookEnv {
+interface Env extends AccessEnv, GoogleEnv, WebhookEnv, InsightsEnv {
   DB: D1Database;
   ADMIN_HOST: string;
   TIMEZONE?: string; // お店のタイムゾーン（IANA 名）。既定は Asia/Tokyo
@@ -208,6 +209,10 @@ export default {
       if (url.pathname === "/v1/calendar") return await handlePublic(request, env, url, m);
       if (url.pathname === "/widget.js") return handleScript(request, widgetJs);
       if (url.pathname === "/calendar-image.js") return handleScript(request, calendarImageJs);
+      // Googleマップの数値（サーバー間・INSIGHTS_TOKEN が必要。未設定なら 404）
+      if (url.pathname === "/v1/insights" || url.pathname.startsWith("/v1/insights/")) {
+        return await handleInsights(request, env, url);
+      }
       // 管理画面・書き込みAPIは管理ホストだけで提供する
       if (url.hostname === env.ADMIN_HOST) return await handleAdmin(request, env, url, ctx, m);
       return json({ error: "Not Found" }, { status: 404 });

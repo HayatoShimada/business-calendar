@@ -15,6 +15,7 @@ Google Cloud Console の「API とサービス → 割り当て」で Business P
 1. 申請したプロジェクトで次の API を有効にする
    - My Business Account Management API
    - My Business Business Information API
+   - Business Profile Performance API（`/v1/insights` を使うときだけ。表示回数・ルート検索などの数値）
 2. 「API とサービス → OAuth 同意画面」を設定（外部、テストユーザーにビジネスプロフィールのオーナーのアカウント）
 3. 「認証情報 → OAuth クライアント ID を作成」で種類 **デスクトップ アプリ** を作る
 
@@ -48,3 +49,14 @@ node test/google-mock.mjs /tmp/google.log &
 npx wrangler dev --local --env-file test/dev.vars --env-file test/dev-google.vars --ip 127.0.0.1 --port 8787
 # 保存すると /tmp/google.log に Google へ送った内容が記録される
 ```
+
+## 数値を CRM などに渡す（任意）
+
+`GET /v1/insights` と `/v1/insights/keywords` で、Googleマップの表示回数・ルート検索・電話・Webクリック・
+検索語句をサーバー間で読めます（[api.md](api.md)）。スコープは上と同じ `business.manage` なので再承認は不要です。
+
+1. 上の「2.」で Business Profile Performance API を有効にする
+2. 推測されない長いトークンを作り（例: `openssl rand -hex 32`）、`npx wrangler secret put INSIGHTS_TOKEN` で Worker の secret にする
+3. 同じ値を呼び出す側（CRM なら `CALENDAR_INSIGHTS_TOKEN`）に設定する
+
+`INSIGHTS_TOKEN` を消すと API は 404 に戻ります。

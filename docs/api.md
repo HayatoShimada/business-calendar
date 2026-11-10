@@ -43,3 +43,31 @@
 | `POST /api/announcements` | `{ "uptoId": 12 }` までの変更をお知らせ済みにする |
 
 書き込みは管理画面と同じオリジンの JSON リクエストだけを受け付けます（CSRF 対策）。エラーは `{ "error": "..." }`（`LANGUAGE` の言語）で返します。
+
+## Googleマップの数値（サーバー間・`INSIGHTS_TOKEN` が必要）
+
+店の CRM などが毎日取り込むための読み取り API。どのホストでも同じ。secret `INSIGHTS_TOKEN` が未設定なら
+**404**（機能ごと無効）、トークン違いは **401**、Google 連携が未設定なら **503**、Google 側のエラーは **502**。
+ブラウザ向けではないので CORS ヘッダーは付けない。
+
+```
+Authorization: Bearer <INSIGHTS_TOKEN>
+```
+
+| メソッド | パス | 内容 |
+| --- | --- | --- |
+| GET | `/v1/insights?from=YYYY-MM-DD&to=YYYY-MM-DD` | 日次の指標（最大120日）。Google が値を省いた日は 0 |
+| GET | `/v1/insights/keywords?month=YYYY-MM` | その月の検索語句と表示回数。少ない語は `belowThreshold: true`（値は「この数未満」） |
+
+`/v1/insights` の応答:
+
+```json
+{
+  "from": "2026-11-01", "to": "2026-11-07",
+  "metrics": ["BUSINESS_IMPRESSIONS_DESKTOP_MAPS", "…", "WEBSITE_CLICKS"],
+  "days": [{ "date": "2026-11-01", "metrics": { "BUSINESS_DIRECTION_REQUESTS": 4, "…": 0 } }]
+}
+```
+
+指標は Business Profile Performance API の `DailyMetric`（地図/検索 × PC/モバイルの表示回数、ルート検索、
+電話、ウェブサイトのクリック）。Google 側の数値は数日遅れて確定するので、取り込む側は直近の数日を取り直すこと。
