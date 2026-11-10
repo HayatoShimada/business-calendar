@@ -66,7 +66,7 @@ export function buildSpecialHours(days: Record<string, DayOverride>) {
   };
 }
 
-async function getAccessToken(env: GoogleEnv): Promise<string> {
+export async function getAccessToken(env: GoogleEnv): Promise<string> {
   const response = await fetch(env.GOOGLE_TOKEN_URL || "https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
